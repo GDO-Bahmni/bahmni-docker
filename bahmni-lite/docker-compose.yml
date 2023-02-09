@@ -254,6 +254,9 @@ services:
       REPORTS_DB_NAME: ${REPORTS_DB_NAME:?}
       REPORTS_DB_USERNAME: ${REPORTS_DB_USERNAME:?}
       REPORTS_DB_PASSWORD: ${REPORTS_DB_PASSWORD:?}
+      ODOO_DB_SERVER: odoodb
+      ODOO_DB_USERNAME: ${ODOO_DB_USER:?}
+      ODOO_DB_PASSWORD: ${ODOO_DB_PASSWORD:?}
     volumes:
       - "${CONFIG_VOLUME:?}:/etc/bahmni_config/:ro"
     depends_on:
@@ -300,6 +303,10 @@ services:
       OPENMRS_DB_NAME: ${OPENMRS_DB_NAME}
       OPENMRS_DB_USERNAME: ${OPENMRS_DB_USERNAME}
       OPENMRS_DB_PASSWORD: ${OPENMRS_DB_PASSWORD}
+      ODOO_DB_HOST: ${ODOO_DB_HOST}
+      ODOO_DB_NAME: ${ODOO_DB_NAME}
+      ODOO_DB_USER: ${ODOO_DB_USER}
+      ODOO_DB_PASSWORD: ${ODOO_DB_PASSWORD}
 
   crater-atomfeed:
     image: bahmni/crater-atomfeed:latest
@@ -328,6 +335,68 @@ services:
       MYSQL_USER: ${CRATER_ATOMFEED_DB_USERNAME:?}
       MYSQL_PASSWORD: ${CRATER_ATOMFEED_DB_PASSWORD:?}
 
+  odoo:
+    profiles: ["emr","bahmni-lite"]
+    image: 'bahmni/odoo-10:${ODOO_IMAGE_TAG:?[ERROR]}'
+    ports:
+      - '8069:8069'
+    volumes:
+      - odooappdata:/var/lib/odoo
+      - ${EXTRA_ADDONS_PATH}:/mnt/extra-addons
+      # # Uncomment the below volume only when you need to modify existing bahmni-addons. Also make sure to update the .env file variable with odoo-modules github repo cloned path.
+      # - ${BAHMNI_ODOO_MODULES_PATH}:/opt/bahmni-erp/bahmni-addons
+    depends_on:
+      odoodb:
+        condition: service_healthy
+    environment:
+      HOST: odoodb
+      USER: ${ODOO_DB_USER}
+      PASSWORD: ${ODOO_DB_PASSWORD}
+    logging: *log-config
+
+  odoodb:
+    profiles: ["emr","bahmni-lite"]
+    image: 'bahmni/odoo-10-db:${ODOO_DB_IMAGE_TAG:?[ERROR]}'
+    ports:
+      - '5431:5432'
+    volumes:
+      - '${ODOO_DB_DUMP_PATH}:/resources/db-dump'
+      - 'odoodbdata:/var/lib/postgresql/data'
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -h localhost -U odoo']
+      interval: 10s
+      timeout: 5s
+    environment:
+      POSTGRES_DB: postgres
+      POSTGRES_PASSWORD: ${ODOO_DB_PASSWORD}
+      POSTGRES_USER: ${ODOO_DB_USER}
+    logging: *log-config
+
+  odoo-connect:
+    profiles: ["emr","bahmni-lite"]
+    image: 'bahmni/odoo-connect:${ODOO_CONNECT_IMAGE_TAG:?[ERROR]}'
+    environment:
+      ODOO_DB_SERVER: odoodb
+      ODOO_DB_USERNAME: ${ODOO_DB_USER:?}
+      ODOO_DB_PASSWORD: ${ODOO_DB_PASSWORD:?}
+      OPENMRS_HOST: ${OPENMRS_HOST:?}
+      OPENMRS_PORT: ${OPENMRS_PORT:?}
+      OPENMRS_ATOMFEED_USER: ${OPENMRS_ATOMFEED_USER:?}
+      OPENMRS_ATOMFEED_PASSWORD: ${OPENMRS_ATOMFEED_PASSWORD:?}
+      OPENELIS_HOST: ${OPENELIS_HOST:?}
+      OPENELIS_PORT: ${OPENELIS_PORT:?}
+      OPENELIS_ATOMFEED_USER: ${OPENELIS_ATOMFEED_USER:?}
+      OPENELIS_ATOMFEED_PASSWORD: ${OPENELIS_ATOMFEED_PASSWORD:?}
+      ODOO_HOST: ${ODOO_HOST:?}
+      ODOO_PORT: ${ODOO_PORT:?}
+      ODOO_ATOMFEED_USER: ${ODOO_ATOMFEED_USER:?}
+      ODOO_ATOMFEED_PASSWORD: ${ODOO_ATOMFEED_PASSWORD:?}
+    depends_on:
+      odoodb:
+        condition: service_healthy
+    logging: *log-config
+
+
 volumes:
   openmrs-data:
   openmrsdbdata:
@@ -340,3 +409,5 @@ volumes:
   configuration_checksums:
   mart-data:
   metabase-data:
+  odoodbdata:
+  odooappdata:
