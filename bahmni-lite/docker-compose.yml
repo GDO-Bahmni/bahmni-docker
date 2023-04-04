@@ -67,6 +67,10 @@ services:
       MAIL_USER: ${MAIL_USER}
       MAIL_PASSWORD: ${MAIL_PASSWORD}
       OMRS_DOCKER_ENV: ${OPENMRS_DOCKER_ENV}
+      OPENELIS_HOST: ${OPENELIS_HOST:?}
+      OPENELIS_PORT: ${OPENELIS_PORT:?}
+      OPENELIS_ATOMFEED_USER: ${OPENELIS_ATOMFEED_USER:?}
+      OPENELIS_ATOMFEED_PASSWORD: ${OPENELIS_ATOMFEED_PASSWORD:?}
     ports:
       - '8080:8080'
       # - ${OMRS_DEV_DEBUG_PORT}:${OMRS_DEV_DEBUG_PORT}
@@ -396,6 +400,42 @@ services:
         condition: service_healthy
     logging: *log-config
 
+  openelis:
+      profiles: ["openelis","bahmni-lite"]
+      image: 'bahmni/openelis:${OPENELIS_IMAGE_TAG:?[ERROR]}'
+      ports:
+        - '8052:8052'
+      volumes:
+        - "${CONFIG_VOLUME:?}:/etc/bahmni_config/:ro"
+      environment:
+        OPENMRS_HOST: ${OPENMRS_HOST}
+        OPENMRS_PORT: ${OPENMRS_PORT:?}
+        OPENMRS_ATOMFEED_USER: ${OPENMRS_ATOMFEED_USER:?}
+        OPENMRS_ATOMFEED_PASSWORD: ${OPENMRS_ATOMFEED_PASSWORD:?}
+        OPENELIS_DB_SERVER: ${OPENELIS_DB_SERVER}
+      depends_on:
+        openelisdb:
+          condition: service_healthy
+      logging: *log-config
+
+  openelisdb:
+    profiles: ["openelis","bahmni-lite"]
+    image: 'bahmni/openelis-db:${OPENELIS_DB_IMAGE_TAG:?[ERROR]}'
+    ports:
+      - '5432:5432'
+    volumes:
+      - '${OPENELIS_DB_DUMP_PATH}:/resources/db-dump'
+      - 'openelisdbdata:/var/lib/postgresql/data'
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -h localhost -U postgres']
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: postgres
+    logging: *log-config
 
 volumes:
   openmrs-data:
@@ -411,3 +451,4 @@ volumes:
   metabase-data:
   odoodbdata:
   odooappdata:
+  openelisdbdata:
